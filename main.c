@@ -3,9 +3,9 @@
 #include<string.h>
 
 struct Produto{
-    int id;
     char nome[45];
-    char quantidade[45];
+    int id;
+    int quantidade;
     float preco;
 };
 
@@ -256,6 +256,9 @@ void listarProdutos(struct No *raiz){
         listarProdutos(raiz->esq);
         printf(" >> ID: %i\n", raiz->produto.id);
         printf(" >> Nome: %s\n", raiz->produto.nome);
+        printf(" >> Quantidade: %i\n", raiz->produto.quantidade);
+        printf(" >> Preco: %.2f\n", raiz->produto.preco);
+        printf("\n");
         listarProdutos(raiz->dir);
     }
 }
@@ -298,6 +301,12 @@ int main(){
                 fgets(produto.nome, 45, stdin);
                 produto.nome[strcspn(produto.nome, "\n")] = 0;
 
+                printf(" >> Quantidade do produto: ");
+                scanf("%i", &produto.quantidade);
+
+                printf(" >> Preco do produto: ");
+                scanf("%f", &produto.preco);
+
                 inserirProduto(&raiz, produto);
                 break;
             case 2:
@@ -319,6 +328,8 @@ int main(){
                     printf(" >> produto encontrado: \n");
                     printf(" >> ID: %i\n", encontrado->produto.id);
                     printf(" >> Nome: %s\n", encontrado->produto.nome);
+                    printf(" >> Quantidade: %i\n", encontrado->produto.quantidade);
+                    printf(" >> Preco: %.2f\n", encontrado->produto.preco);
                 }else{
                     printf("produto nao encontrado...\n");
                 }
