@@ -2,9 +2,12 @@
 #include<stdlib.h>
 #include<string.h>
 
+#define RED 0
+#define BLACK 1
+
 struct Produto{
+    int codigo;
     char nome[45];
-    int id;
     int quantidade;
     float preco;
 };
@@ -14,250 +17,415 @@ struct No{
     struct No *esq;
     struct No *dir;
     struct No *pai;
-    int altura;
+    int cor;
 };
 
-// Funcao para obter a altura de um noh
-int altura(struct No *no) {
-    if(no == NULL){
-        return 0;
+struct No* criarNo(struct Produto produto){
+    struct No* novo = (struct No*)malloc(sizeof(struct No));
+
+    if(novo != NULL){
+        novo->produto = produto;
+        novo->esq = NULL;
+        novo->dir = NULL;
+        novo->pai = NULL;
+        novo->cor = RED;
     }
-    return no->altura;
+    return novo;
 }
 
-// Funcao para obter o fator de balanceamento
-int fatorBalanceamento(struct No *no) {
-    if(no == NULL){
-        return 0;
-    }
-    return altura(no->esq) - altura(no->dir);
+int ehVermelho(struct No* no){
+    return (no != NULL && no->cor == RED);
 }
 
-// Funcao para atualizar a altura de um noh
-void atualizarAltura(struct No *no) {
-    if (no == NULL) return;
-    int alturaEsq = altura(no->esq);
-    int alturaDir = altura(no->dir);
-    no->altura = (alturaEsq > alturaDir ? alturaEsq : alturaDir) + 1;
+int ehPreto(struct No* no){
+    return (no == NULL || no->cor == BLACK);
 }
 
-void rotacaoEsq(struct No **raizAntiga){
-    if(*raizAntiga == NULL || (*raizAntiga)->dir == NULL){
-        return;
-    }
-    struct No *novaRaiz = (*raizAntiga)->dir;
-    struct No *temp = novaRaiz->esq;
-
-    novaRaiz->esq = *raizAntiga;
-    (*raizAntiga)->dir = temp;
+void rotacaoEsq(struct No **raiz){
     
-    novaRaiz->pai = (*raizAntiga)->pai;
-    (*raizAntiga)->pai = novaRaiz;
+    struct No *novaRaiz = (*raiz)->dir;
+    (*raiz)->dir = novaRaiz->esq;
 
-    if(temp != NULL){
-        temp->pai = *raizAntiga;
+    if(novaRaiz->esq != NULL){
+        novaRaiz->esq->pai = *raiz;
     }
-    if(novaRaiz->pai != NULL){
-        if(novaRaiz->pai->esq == *raizAntiga){
-            novaRaiz->pai->esq = novaRaiz;
-        }else{
-            novaRaiz->pai->dir = novaRaiz;
-        }
+    novaRaiz->pai = (*raiz)->pai;
+    
+    // atualizar os ponteiros do pai
+    if((*raiz)->pai == NULL){
+        *raiz = novaRaiz; // primeiro noh da arvore
+    }else if(*raiz == (*raiz)->pai->esq){
+        (*raiz)->pai->esq = novaRaiz;
+    }else{
+        (*raiz)->pai->dir = novaRaiz;
     }
-    *raizAntiga = novaRaiz;
 
-    // atualizar alturas apos rotacao
-    atualizarAltura((*raizAntiga)->esq);
-    atualizarAltura(*raizAntiga);
+    novaRaiz->esq = *raiz;
+    (*raiz)->pai = novaRaiz;
 }
 
-void rotacaoDir(struct No **raizAntiga){
-    if(*raizAntiga == NULL || (*raizAntiga)->esq == NULL){
-        return;
+void rotacaoDir(struct No **raiz){
+
+    struct No *novaRaiz = (*raiz)->esq;
+    (*raiz)->esq = novaRaiz->dir;
+
+    if(novaRaiz->dir != NULL){
+        novaRaiz->dir->pai = *raiz;
     }
 
-    struct No *novaRaiz = (*raizAntiga)->esq;
-    struct No *temp = novaRaiz->dir;
+    novaRaiz->pai = (*raiz)->pai;
 
-    novaRaiz->dir = *raizAntiga;
-    (*raizAntiga)->esq = temp;
-
-    novaRaiz->pai = (*raizAntiga)->pai;
-    (*raizAntiga)->pai = novaRaiz;
-
-    if(temp != NULL){
-        temp->pai = *raizAntiga;
+    if((*raiz)->pai == NULL){
+        *raiz = novaRaiz;
+    }else if(*raiz == (*raiz)->pai->esq){
+        (*raiz)->pai->esq = novaRaiz;
+    }else{
+        (*raiz)->pai->dir = novaRaiz;
     }
 
-    if(novaRaiz->pai != NULL){
-        if(novaRaiz->pai->esq == *raizAntiga){
-            novaRaiz->pai->esq = novaRaiz;
-        } else {
-            novaRaiz->pai->dir = novaRaiz;
-        }
-    }
-
-    *raizAntiga = novaRaiz;
-
-    // atualizar alturas apos rotacao
-    atualizarAltura((*raizAntiga)->dir);
-    atualizarAltura(*raizAntiga);
+    novaRaiz->dir = *raiz;
+    (*raiz)->pai = novaRaiz;
 }
 
 // Funcao para balancear a arvore AVL
-void balancear(struct No **raiz) {
-    if (*raiz == NULL) return;
+void balancearInsercao(struct No **raiz, struct No *novo) {
+    
+    struct No *pai = NULL;
+    struct No *avo = NULL;
+    // o loop vai se manter enquanto houver violacoes da propriedade da arvore rubro-negra
+    while(novo != *raiz && ehVermelho(novo) && ehVermelho(novo->pai)){
+        pai = novo->pai;
+        avo = pai->pai;
+        // CASO 1: Pai e filho esquerda do avo
+        if(pai == avo->esq){
+            struct No *tio = avo->dir;
 
-    // atualiza a altura do noh atual
-    atualizarAltura(*raiz);
+            // SUBCASO 1.1: Tio >>> RED
+            if(ehVermelho(tio)){
+                avo->cor = RED;
+                pai->cor = BLACK;
+                tio->cor = BLACK;
+                novo = avo;
+            }
+            // SUBCASO 1.2: Tio >>> BLACK e Novo >>> Filho dir
+            else{
+                if(novo == pai->dir){
+                    rotacaoEsq(&pai);
+                    novo = pai;
+                    pai = novo->pai;
+                }
+                // SUBCASO 1.3: Tio >>> BLACK + Novo >>> Filho esq
+                rotacaoDir(&avo);
+                int temp = pai->cor;
+                pai->cor = avo->cor;
+                avo->cor = temp;
+                novo = pai;
+            }
 
-    // calcula o fator de balanceamento
-    int fb = fatorBalanceamento(*raiz);
 
-    // Caso 1: rotacao a direita
-    if (fb > 1 && (*raiz)->esq != NULL && fatorBalanceamento((*raiz)->esq) >= 0) {
-        rotacaoDir(raiz);
+        }
+        // CASO 2: Pai eh filho dir do avo
+        else{
+            struct No *tio = avo->esq;
+
+            // SubVaso 2.1: Tio >>> RED
+            if(ehVermelho(tio)){
+                avo->cor = RED;
+                pai->cor = BLACK;
+                tio->cor = BLACK;
+                novo = avo;
+            }else{
+                // SubCaso 2.2: Tio >>> BLACK + novo filho esta na esq
+                if(novo == pai->esq){
+                    rotacaoDir(&pai);
+                    novo = pai;
+                    pai = novo->pai;
+                }
+
+                // SubCaso 2.3: Tio >>> BLACK + novo filho esta na dir
+                rotacaoEsq(&avo);
+                int temp = pai->cor;
+                pai->cor = avo->cor;
+                avo->cor = temp;
+                novo = pai;
+            }
+        }
     }
-    // Caso 2: rotacao a esquerda
-    else if (fb < -1 && (*raiz)->dir != NULL && fatorBalanceamento((*raiz)->dir) <= 0) {
-        rotacaoEsq(raiz);
-    }
-    // Caso 3: rotacao dupla a direita
-    else if (fb > 1 && (*raiz)->esq != NULL && fatorBalanceamento((*raiz)->esq) < 0) {
-        rotacaoEsq(&(*raiz)->esq);
-        rotacaoDir(raiz);
-    }
-    // Caso 4: rotacao dupla a esquerda
-    else if (fb < -1 && (*raiz)->dir != NULL && fatorBalanceamento((*raiz)->dir) > 0) {
-        rotacaoDir(&(*raiz)->dir);
-        rotacaoEsq(raiz);
-    }
+
+    (*raiz)->cor = BLACK;
+
 }
 
 // Funcao para inserir um novo produto na arvore
 void inserirProduto(struct No **raiz, struct Produto novoProduto){
-    if(*raiz == NULL){
-        *raiz = (struct No *)malloc(sizeof(struct No));
-        if(*raiz != NULL){
-            (*raiz)->produto = novoProduto;
-            (*raiz)->esq = NULL;
-            (*raiz)->dir = NULL;
-            (*raiz)->pai = NULL;
-            (*raiz)->altura = 1;
-            printf("produto [%s] cadastrado com sucesso!\n", novoProduto.nome);
-        }else{
-            printf("ERROR : insercao do [%s] invalida, memoria insuficiente.\n", novoProduto.nome);
-            return;
-        }
-    }else{
-        if(strcmp(novoProduto.nome, (*raiz)->produto.nome) < 0){
-            inserirProduto(&((*raiz)->esq), novoProduto);
-            if((*raiz)->esq != NULL){  // verifica se a insercao foi bem sucedida
-                (*raiz)->esq->pai = *raiz; // pai do filho a esq recebe o noh atual
-            }
-        }else if(strcmp(novoProduto.nome, (*raiz)->produto.nome) > 0){
-            inserirProduto(&((*raiz)->dir), novoProduto);
-            if((*raiz)->dir != NULL){  // verifica se a insercao foi bem sucedida
-                (*raiz)->dir->pai = *raiz; // pai do filho a dir recebe o noh atual
-            }
-        }else{
-            printf("produto com este nome ja existe na lista...\n");
-            return;
-        }
-        balancear(raiz);
+    struct No *novo = criarNo(novoProduto);
+    if(novo == NULL){
+        printf("ERROR : Memoria insuficiente para inserir o produto.\n");
+        return;
     }
+
+    struct No *atual = *raiz;
+    struct No *pai = NULL;
+
+    // encontrar a posicao de insercao
+    while(atual != NULL){
+        pai = atual;
+        if(novoProduto.codigo < atual->produto.codigo){
+            atual = atual->esq;
+        }else if(novoProduto.codigo > atual->produto.codigo){
+            atual = atual->dir;
+        }else{
+            printf("ERROR : Produto com codigo %i ja existe.\n", novoProduto.codigo);
+            free(novo);
+            return;
+        }
+    }
+
+    novo->pai = pai;
+
+    if(pai == NULL){
+        *raiz = novo; // primeiro noh da arvore
+    }else if(novoProduto.codigo < pai->produto.codigo){
+        pai->esq = novo; // insere a esquerda
+    }else{
+        pai->dir = novo; // insere a direita
+    }
+    
+    balancearInsercao(raiz, novo);
+    printf(" >> Produto [%s] cadastrado com sucesso! << \n", novoProduto.nome);
+    
+}
+// Funcao para encontrar o noh com o valor minimo
+struct No* encontrarMinimo(struct No* no){
+    while(no->esq != NULL){
+        no = no->esq;
+    }
+    return no;
 }
 
-int removerProduto(struct No **raiz, char removerProdutoNome[45]){
+void balancearRemocao(struct No **raiz, struct No *noSucessor){
+    if(noSucessor == NULL || noSucessor->pai == NULL){
+        return;
+    }
+
+    struct No *irmao;
+
+    // soh balanceia se o noh sucessor nao for raiz, nem preto
+    while(noSucessor != *raiz && ehPreto(noSucessor)){
+        if(noSucessor == noSucessor->pai->esq){
+            // define o irmao
+            irmao = noSucessor->pai->dir;
+            if(irmao == NULL) break; 
+            
+            // CASO 1: irmao >>> RED
+            if(ehVermelho(irmao)){
+                irmao->cor = BLACK;
+                noSucessor->pai->cor = RED;
+                rotacaoEsq(&noSucessor->pai);
+                irmao = noSucessor->pai->dir;
+            }
+            
+            // CASO 2: irmao >>> BLACK + filhos esquerdo e direito >>> BLACK
+            if((irmao->esq == NULL || ehPreto(irmao->esq)) && 
+               (irmao->dir == NULL || ehPreto(irmao->dir))){
+                irmao->cor = RED;
+                noSucessor = noSucessor->pai;
+            }else{
+                // CASO 3: filho direito do irmao >>> BLACK
+                if(irmao->dir == NULL || ehPreto(irmao->dir)){
+                    if(irmao->esq != NULL){
+                        irmao->esq->cor = BLACK;
+                    }
+                    irmao->cor = RED;
+                    rotacaoDir(&irmao);
+                    irmao = noSucessor->pai->dir;
+                }
+                
+                // CASO 4: irmao >>> cor do pai + cor do pai >>> BLACK + filho direito do irmao >>> BLACK
+                irmao->cor = noSucessor->pai->cor;
+                noSucessor->pai->cor = BLACK;
+                if(irmao->dir != NULL){
+                    irmao->dir->cor = BLACK;
+                }
+                rotacaoEsq(&noSucessor->pai);
+                noSucessor = *raiz;
+            }
+        }else{
+            // Caso simetrico, quando o noh sucessor eh filho direito do pai
+            irmao = noSucessor->pai->esq;
+            if(irmao == NULL) break;  // verifica se o irmao existe
+            
+            // SUBCASO 1: irmao >>> RED
+            if(ehVermelho(irmao)){
+                irmao->cor = BLACK;
+                noSucessor->pai->cor = RED;
+                rotacaoDir(&noSucessor->pai);
+                irmao = noSucessor->pai->esq;
+            }
+            
+            // SUBCASO 2: irmao >>> BLACK + filhos esquerdo e direito >>> BLACK
+            if((irmao->esq == NULL || ehPreto(irmao->esq)) && 
+               (irmao->dir == NULL || ehPreto(irmao->dir))){
+                irmao->cor = RED;
+                noSucessor = noSucessor->pai;
+            }else{
+                // SUBCASO 3: filho esquerdo do irmao >>> BLACK
+                if(irmao->esq == NULL || ehPreto(irmao->esq)){
+                    if(irmao->dir != NULL){
+                        irmao->dir->cor = BLACK;
+                    }
+                    irmao->cor = RED;
+                    rotacaoEsq(&irmao);
+                    irmao = noSucessor->pai->esq;
+                }
+                
+                // SUBCASO 4: irmao >>> cor do pai + cor do pai >>> BLACK + filho esquerdo do irmao >>> BLACK
+                irmao->cor = noSucessor->pai->cor;
+                noSucessor->pai->cor = BLACK;
+                if(irmao->esq != NULL){
+                    irmao->esq->cor = BLACK;
+                }
+                rotacaoDir(&noSucessor->pai);
+                noSucessor = *raiz;
+            }
+        }
+    }
+    noSucessor->cor = BLACK;
+}
+
+int removerProduto(struct No **raiz, int removerProdutoCodigo){
     if(*raiz == NULL){
-        printf("produto nao encontrado!\n");
+        printf(" >> Produto com codigo %i nao encontrado!\n", removerProdutoCodigo);
         return 0;
     }
 
-    int comparacao = strcmp(removerProdutoNome, (*raiz)->produto.nome);
-    // procura o produto a ser removido
-    if(comparacao < 0){
-        return removerProduto(&((*raiz)->esq), removerProdutoNome);
+    struct No *no = *raiz;
+    struct No *pai = NULL;
+
+    // buscar o noh a ser removido
+    while(no != NULL && no->produto.codigo != removerProdutoCodigo){
+        pai = no;
+        if(removerProdutoCodigo < no->produto.codigo){
+            no = no->esq;
+        }else{
+            no = no->dir;
+        }
     }
-    else if(comparacao > 0){
-        return removerProduto(&((*raiz)->dir), removerProdutoNome);
+
+    if(no == NULL){
+        printf(" >> Produto com codigo %i nao encontrado!\n", removerProdutoCodigo);
+        return 0;
     }
-    else{
-        // >> noh encontrado <<
-        struct No *temp = *raiz;
-        
-        // Caso 1: noh folha
-        if((*raiz)->esq == NULL && (*raiz)->dir == NULL){
+
+    struct No *noSucessor, *noRemovido = no;
+    int corOriginal = noRemovido->cor;
+
+    // CASO 1: No folha(sem filhos)
+    if(no->esq == NULL && no->dir == NULL){
+        if(pai == NULL){
             *raiz = NULL;
-        }
-        // Caso 2: noh com um filho
-        else if((*raiz)->esq == NULL){
-            *raiz = (*raiz)->dir;
-            if(*raiz != NULL){  // verifica se o novo noh nao eh NULL
-                (*raiz)->pai = temp->pai;
-            }
-        }
-        else if((*raiz)->dir == NULL){
-            *raiz = (*raiz)->esq;
-            if(*raiz != NULL){  // verifica se o novo noh nao eh NULL
-                (*raiz)->pai = temp->pai;
-            }
-        }
-        // Caso 3: noh com dois filhos
-        else{
-            struct No *sucessor = (*raiz)->dir;
-            while(sucessor->esq != NULL){
-                sucessor = sucessor->esq;
-            }
-            
-            // copia os dados do sucessor para o noh atual
-            (*raiz)->produto = sucessor->produto;
-            
-            // remove o sucessor
-            if(sucessor->pai == *raiz){
-                sucessor->pai->dir = sucessor->dir;
-                if(sucessor->dir != NULL){
-                    sucessor->dir->pai = sucessor->pai;
-                }
+        }else{
+            if(no == pai->esq){
+                pai->esq = NULL;
             }else{
-                sucessor->pai->esq = sucessor->dir;
-                if(sucessor->dir != NULL){
-                    sucessor->dir->pai = sucessor->pai;
-                }
+                pai->dir = NULL;
             }
-            temp = sucessor;
+        }
+        noSucessor = NULL;
+    }
+    
+    // CASO 2: No com 1 filho
+    else if(no->esq == NULL){
+        noSucessor = no->dir;
+        if(pai == NULL){
+            *raiz = noSucessor;
+        }else{
+            if(no == pai->esq){
+                pai->esq = noSucessor;
+            }else{
+                pai->dir = noSucessor;
+            }
+        }
+        noSucessor->pai = pai;
+    }else if(no->dir == NULL){
+        noSucessor = no->esq;
+        if(pai == NULL){
+            *raiz = noSucessor;
+        }else{
+            if(no == pai->esq){
+                pai->esq = noSucessor;
+            }else{
+                pai->dir = noSucessor;
+            }
+        }
+        noSucessor->pai = pai;
+    }
+    // CASO 3: No com dois filhos
+    else{
+        noRemovido = encontrarMinimo(no->dir); // retorna o noh com o menor valor a subarv dir
+        corOriginal = noRemovido->cor;
+        noSucessor = noRemovido->dir;
+        
+        // Reorganiza os nos para substituir o no pelo sucessor
+        if(noRemovido->pai == no){
+            if(noSucessor != NULL){
+                noSucessor->pai = noRemovido;
+            }
+        }else{
+            if(noSucessor != NULL){
+                noSucessor->pai = noRemovido->pai;
+            }
+            noRemovido->pai->esq = noSucessor;
+            noRemovido->dir = no->dir;
+            no->dir->pai = noRemovido;
+        }
+
+        if(pai == NULL){
+            *raiz = noRemovido;
+        }else{
+            if(no == pai->esq){
+                pai->esq = noRemovido;
+            }else{
+                pai->dir = noRemovido;
+            }
         }
         
-        free(temp);
-        if(*raiz != NULL){  // soh balanceia se a raiz nao for NULL
-            balancear(raiz);
-        }
-        return 1;
+        // atualiza os ponteiros e a cor do noh sucessor
+        noRemovido->pai = pai;
+        noRemovido->esq = no->esq;
+        no->esq->pai = noRemovido;
+        noRemovido->cor = no->cor;
     }
+
+    free(no);
+    // Se o noh removido for preto, chama o balanceamento
+    if(corOriginal == BLACK){
+        balancearRemocao(raiz, noSucessor);
+    }
+    
+    return 1;    
+
 }
 
 // Funcao de busca que retorna o noh encontrado
-struct No *buscarProduto(struct No *raiz, char buscarProdutoNome[45]){
-    if(raiz == NULL){
-        return NULL;
-    }else{
-        if(strcmp(buscarProdutoNome, raiz->produto.nome) == 0){
-            return raiz;
-        }else if(strcmp(buscarProdutoNome, raiz->produto.nome) < 0){
-            return buscarProduto(raiz->esq, buscarProdutoNome);
-        }else{
-            return buscarProduto(raiz->dir, buscarProdutoNome);
-        }
-    }
+struct No *buscarProduto(struct No *raiz, int codigo){
+    if (raiz == NULL || raiz->produto.codigo == codigo)
+        return raiz;
+    
+    if (codigo < raiz->produto.codigo)
+        return buscarProduto(raiz->esq, codigo);
+    
+    return buscarProduto(raiz->dir, codigo);
 }
 // Funcao para listar todos os produtos da arvore
 void listarProdutos(struct No *raiz){
-    if(raiz != NULL){
+    if (raiz != NULL) {
         listarProdutos(raiz->esq);
-        printf(" >> ID: %i\n", raiz->produto.id);
+        printf(" >> Codigo: %d\n", raiz->produto.codigo);
         printf(" >> Nome: %s\n", raiz->produto.nome);
-        printf(" >> Quantidade: %i\n", raiz->produto.quantidade);
+        printf(" >> Quantidade: %d\n", raiz->produto.quantidade);
         printf(" >> Preco: %.2f\n", raiz->produto.preco);
+        printf(" >> Cor: %s\n", raiz->cor == RED ? "Vermelho" : "Preto");
         printf("\n");
         listarProdutos(raiz->dir);
     }
@@ -276,16 +444,16 @@ int main(){
     struct No *raiz = NULL;
     struct Produto produto;
     int opc = -1;
-    char buscarProdutoNome[45], removerProdutoNome[45];
+    int codigo;
 
-    while(opc != 0){ // menu de opcoes
-        printf("\n========= ProdutoS =========\n");
-        printf("<1> -  Inserir produto -  <1>\n");
-        printf("<2> -  Remover produto -  <2>\n");
-        printf("<3> -  Buscar produto  -  <3>\n");
-        printf("<4> -  Listar produtos -  <4>\n");
-        printf("<0> -       Sair       -  <0>\n");
-        printf("\n========= ProdutoS =========\n");
+    while(opc != 0){
+        printf("\n========= <Sistema de Inventario> =========\n");
+        printf("        <1> - Inserir produto  - <1>\n");
+        printf("        <2> - Remover produto  - <2>\n");
+        printf("        <3> - Buscar produto   - <3>\n");
+        printf("        <4> - Listar produtos  - <4>\n");
+        printf("        <0> -      Sair        - <0>\n");
+        printf("========= <Sistema de Inventario> =========\n");
 
         printf("\n >> Escolha uma opcao: ");
         scanf("%i", &opc);
@@ -293,8 +461,9 @@ int main(){
 
         switch(opc){
             case 1:
-                printf(" >> ID do produto: ");
-                scanf("%i", &produto.id);
+                printf(" == INSERIR PRODUTO ==\n");
+                printf(" >> Codigo do produto: ");
+                scanf("%i", &produto.codigo);
                 getchar();
 
                 printf(" >> Nome do produto: ");
@@ -310,33 +479,39 @@ int main(){
                 inserirProduto(&raiz, produto);
                 break;
             case 2:
-                printf(" >> Nome do produto: ");
-                fgets(removerProdutoNome, 45, stdin);
-                removerProdutoNome[strcspn(removerProdutoNome, "\n")] = 0;
+                printf(" == REMOVER PRODUTO ==\n");
+                printf(" >> Codigo do produto: ");
+                scanf("%i", &codigo);
+                getchar();
 
-                removerProduto(&raiz, removerProdutoNome);
-                printf(" >> produto removido com sucesso!\n");
+                if(removerProduto(&raiz, codigo)){
+                    printf(" >> produto removido com sucesso!\n");
+                }
                 break;
             case 3:
-                printf(" >> Nome do produto: ");
-                fgets(buscarProdutoNome, 45, stdin);
-                buscarProdutoNome[strcspn(buscarProdutoNome, "\n")] = 0;
+                printf(" >> Codigo do produto: ");
+                scanf("%i", &codigo);
+                getchar();
 
-                struct No *encontrado = buscarProduto(raiz, buscarProdutoNome);
-
-                if(encontrado != NULL){
-                    printf(" >> produto encontrado: \n");
-                    printf(" >> ID: %i\n", encontrado->produto.id);
-                    printf(" >> Nome: %s\n", encontrado->produto.nome);
-                    printf(" >> Quantidade: %i\n", encontrado->produto.quantidade);
-                    printf(" >> Preco: %.2f\n", encontrado->produto.preco);
-                }else{
-                    printf("produto nao encontrado...\n");
+                struct No *encontrado = buscarProduto(raiz, codigo);
+                if(encontrado != NULL) {
+                    printf("\nProduto encontrado:\n");
+                    printf("Codigo: %d\n", encontrado->produto.codigo);
+                    printf("Nome: %s\n", encontrado->produto.nome);
+                    printf("Quantidade: %d\n", encontrado->produto.quantidade);
+                    printf("Preco: %.2f\n", encontrado->produto.preco);
+                    printf("Cor do no: %s\n", encontrado->cor == RED ? "Vermelho" : "Preto");
+                } else {
+                    printf("Produto nao encontrado!\n");
                 }
                 break;
             case 4:
-                printf("\n>>> Listagem de produtos <<<\n");
-                listarProdutos(raiz);
+                printf("\n=== Lista de Produtos ===\n");
+                if(raiz == NULL) {
+                    printf("Nenhum produto cadastrado!\n");
+                } else {
+                    listarProdutos(raiz);
+                }
                 break;
             case 0:
                 printf(" >> Saindo do sistema <<\n");
