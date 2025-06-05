@@ -87,7 +87,7 @@ void rotacaoDir(struct No **raiz){
     (*raiz)->pai = novaRaiz;
 }
 
-// Funcao para balancear a arvore AVL
+// Funcao para balancear a arvore
 void balancearInsercao(struct No **raiz, struct No *novo) {
     
     struct No *pai = NULL;
